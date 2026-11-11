@@ -264,13 +264,13 @@ private fun Browser(vm: MainViewModel, goLaunch: () -> Unit) {
                             listOf("По имени", "По размеру", "По дате").forEachIndexed { i, s ->
                                 DropdownMenuItem(
                                     text = { Text(s) },
-                                    onClick = { vm.prefs.setSortBy(i); sortMenu = false },
+                                    onClick = { vm.prefs.saveSortBy(i); sortMenu = false },
                                     leadingIcon = { if (vm.prefs.sortBy == i) Icon(Icons.Default.Check, null) }
                                 )
                             }
                             DropdownMenuItem(
                                 text = { Text("По убыванию") },
-                                onClick = { vm.prefs.setSortDesc(!vm.prefs.sortDesc); sortMenu = false },
+                                onClick = { vm.prefs.saveSortDesc(!vm.prefs.sortDesc); sortMenu = false },
                                 leadingIcon = { if (vm.prefs.sortDesc) Icon(Icons.Default.Check, null) }
                             )
                         }
@@ -282,7 +282,7 @@ private fun Browser(vm: MainViewModel, goLaunch: () -> Unit) {
                             DropdownMenuItem(text = { Text("Обновить") }, onClick = { menu = false; vm.reload() })
                             DropdownMenuItem(
                                 text = { Text("Скрытые файлы") },
-                                onClick = { vm.prefs.setShowHidden(!vm.prefs.showHidden); menu = false },
+                                onClick = { vm.prefs.saveShowHidden(!vm.prefs.showHidden); menu = false },
                                 leadingIcon = { if (vm.prefs.showHidden) Icon(Icons.Default.Check, null) }
                             )
                         }
