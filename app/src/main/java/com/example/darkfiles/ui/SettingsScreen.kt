@@ -41,18 +41,18 @@ fun SettingsTab(vm: MainViewModel) {
         ClickRow("Тема", themeNames[p.theme]) { dlg = "theme" }
 
         Group("Файлы")
-        SwitchRow("Показывать скрытые файлы", "Имена, начинающиеся с точки", p.showHidden) { p.setShowHidden(it) }
-        SwitchRow("Папки сверху", null, p.foldersFirst) { p.setFoldersFirst(it) }
+        SwitchRow("Показывать скрытые файлы", "Имена, начинающиеся с точки", p.showHidden) { p.saveShowHidden(it) }
+        SwitchRow("Папки сверху", null, p.foldersFirst) { p.saveFoldersFirst(it) }
         ClickRow("Сортировка", sortNames[p.sortBy]) { dlg = "sort" }
-        SwitchRow("Сортировать по убыванию", null, p.sortDesc) { p.setSortDesc(it) }
-        SwitchRow("Подтверждать удаление", null, p.confirmDelete) { p.setConfirmDelete(it) }
+        SwitchRow("Сортировать по убыванию", null, p.sortDesc) { p.saveSortDesc(it) }
+        SwitchRow("Подтверждать удаление", null, p.confirmDelete) { p.saveConfirmDelete(it) }
 
         Group("Подключение")
-        SwitchRow("Подключаться автоматически", "При запуске и возврате в приложение", p.autoConnect) { p.setAutoConnect(it) }
+        SwitchRow("Подключаться автоматически", "При запуске и возврате в приложение", p.autoConnect) { p.saveAutoConnect(it) }
         ClickRow("Порт ADB-сервера", p.adbPort.toString()) { dlg = "port" }
 
         Group("Видео")
-        SwitchRow("Автозапуск воспроизведения", null, p.autoplay) { p.setAutoplay(it) }
+        SwitchRow("Автозапуск воспроизведения", null, p.autoplay) { p.saveAutoplay(it) }
 
         Group("Быстрый доступ")
         if (p.shortcuts.isEmpty()) {
@@ -89,10 +89,10 @@ fun SettingsTab(vm: MainViewModel) {
     }
 
     when (dlg) {
-        "theme" -> RadioDialog("Тема", themeNames, p.theme, { dlg = "" }) { p.setTheme(it); dlg = "" }
-        "sort" -> RadioDialog("Сортировка", sortNames, p.sortBy, { dlg = "" }) { p.setSortBy(it); dlg = "" }
+        "theme" -> RadioDialog("Тема", themeNames, p.theme, { dlg = "" }) { p.saveTheme(it); dlg = "" }
+        "sort" -> RadioDialog("Сортировка", sortNames, p.sortBy, { dlg = "" }) { p.saveSortBy(it); dlg = "" }
         "port" -> TextDialog("Порт ADB-сервера", p.adbPort.toString(), "OK", { dlg = "" }) {
-            p.setAdbPort(it.toIntOrNull()?.coerceIn(1024, 65535) ?: 38517)
+            p.saveAdbPort(it.toIntOrNull()?.coerceIn(1024, 65535) ?: 38517)
             dlg = ""
         }
         "addpath" -> TextDialog("Адрес папки", "${vm.root}/Android/data/", "Добавить", { dlg = "" }) { path ->
