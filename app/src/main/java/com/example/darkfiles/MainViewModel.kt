@@ -42,6 +42,11 @@ sealed interface Conn {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val prefs = Prefs(app)
     val root: String = Environment.getExternalStorageDirectory().absolutePath
+
+    // Initialize path before init, because auto-connect reads it from connect().
+    var path by mutableStateOf<String?>(null)
+        private set
+
     private val ctx: Application get() = getApplication()
 
     // ---------- подключение ----------
@@ -199,8 +204,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- обзор файлов ----------
-    var path by mutableStateOf<String?>(null)
-        private set
     private var raw by mutableStateOf<List<FileItem>>(emptyList())
     var loading by mutableStateOf(false)
         private set
