@@ -101,7 +101,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun chooseMode(m: String) {
-        prefs.setMode(m)
+        prefs.saveMode(m)
         connect()
     }
 
