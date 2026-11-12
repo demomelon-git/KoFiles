@@ -1,4 +1,4 @@
-package com.example.darkfiles.data
+package com.example.kofiles.data
 
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -33,6 +33,8 @@ class Prefs(ctx: Context) {
         private set
     var adbPort by mutableIntStateOf(sp.getInt("adbPort", 38517))
         private set
+    var askOpenWith by mutableStateOf(sp.getBoolean("askOpenWith", true))
+        private set
 
     val shortcuts = mutableStateListOf<Shortcut>()
 
@@ -44,16 +46,17 @@ class Prefs(ctx: Context) {
         get() = sp.getString("token", null)
             ?: UUID.randomUUID().toString().replace("-", "").also { sp.edit().putString("token", it).apply() }
 
-    fun saveMode(v: String) { mode = v; sp.edit().putString("mode", v).apply() }
-    fun saveTheme(v: Int) { theme = v; sp.edit().putInt("theme", v).apply() }
-    fun saveShowHidden(v: Boolean) { showHidden = v; sp.edit().putBoolean("hidden", v).apply() }
-    fun saveFoldersFirst(v: Boolean) { foldersFirst = v; sp.edit().putBoolean("foldersFirst", v).apply() }
-    fun saveConfirmDelete(v: Boolean) { confirmDelete = v; sp.edit().putBoolean("confirmDelete", v).apply() }
-    fun saveAutoConnect(v: Boolean) { autoConnect = v; sp.edit().putBoolean("autoConnect", v).apply() }
-    fun saveAutoplay(v: Boolean) { autoplay = v; sp.edit().putBoolean("autoplay", v).apply() }
-    fun saveSortBy(v: Int) { sortBy = v; sp.edit().putInt("sortBy", v).apply() }
-    fun saveSortDesc(v: Boolean) { sortDesc = v; sp.edit().putBoolean("sortDesc", v).apply() }
-    fun saveAdbPort(v: Int) { adbPort = v; sp.edit().putInt("adbPort", v).apply() }
+    fun setMode(v: String) { mode = v; sp.edit().putString("mode", v).apply() }
+    fun setTheme(v: Int) { theme = v; sp.edit().putInt("theme", v).apply() }
+    fun setShowHidden(v: Boolean) { showHidden = v; sp.edit().putBoolean("hidden", v).apply() }
+    fun setFoldersFirst(v: Boolean) { foldersFirst = v; sp.edit().putBoolean("foldersFirst", v).apply() }
+    fun setConfirmDelete(v: Boolean) { confirmDelete = v; sp.edit().putBoolean("confirmDelete", v).apply() }
+    fun setAutoConnect(v: Boolean) { autoConnect = v; sp.edit().putBoolean("autoConnect", v).apply() }
+    fun setAutoplay(v: Boolean) { autoplay = v; sp.edit().putBoolean("autoplay", v).apply() }
+    fun setSortBy(v: Int) { sortBy = v; sp.edit().putInt("sortBy", v).apply() }
+    fun setSortDesc(v: Boolean) { sortDesc = v; sp.edit().putBoolean("sortDesc", v).apply() }
+    fun setAdbPort(v: Int) { adbPort = v; sp.edit().putInt("adbPort", v).apply() }
+    fun setAskOpenWith(v: Boolean) { askOpenWith = v; sp.edit().putBoolean("askOpenWith", v).apply() }
 
     private fun loadShortcuts(): List<Shortcut> = try {
         val a = JSONArray(sp.getString("shortcuts", "[]"))
