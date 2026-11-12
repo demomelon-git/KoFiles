@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.kofiles.data.FileItem
+import com.example.kofiles.data.Kind as DataKind
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,6 +45,11 @@ object Fmt {
     }
 
     fun date(ms: Long): String = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(ms))
+
+    fun time(ms: Long): String {
+        val total = (ms.coerceAtLeast(0L) / 1000L).toInt()
+        return String.format(Locale.getDefault(), "%d:%02d", total / 60, total % 60)
+    }
 }
 
 enum class Kind { DIR, VIDEO, IMAGE, AUDIO, APK, OTHER }
@@ -51,6 +57,15 @@ enum class Kind { DIR, VIDEO, IMAGE, AUDIO, APK, OTHER }
 private val VIDEO = setOf("mp4", "mkv", "webm", "3gp", "avi", "mov", "m4v", "ts", "flv", "wmv", "mpg", "mpeg")
 private val IMAGE = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic")
 private val AUDIO = setOf("mp3", "m4a", "aac", "ogg", "wav", "flac", "opus")
+
+fun uiKind(kind: DataKind): Kind = when (kind) {
+    DataKind.DIR -> Kind.DIR
+    DataKind.VIDEO -> Kind.VIDEO
+    DataKind.IMAGE -> Kind.IMAGE
+    DataKind.AUDIO -> Kind.AUDIO
+    DataKind.APK -> Kind.APK
+    DataKind.ARCHIVE, DataKind.OTHER -> Kind.OTHER
+}
 
 fun kindOf(f: FileItem): Kind {
     if (f.isDir) return Kind.DIR

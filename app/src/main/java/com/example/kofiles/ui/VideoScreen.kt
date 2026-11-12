@@ -36,14 +36,16 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
-import com.example.kofiles.data.RemoteFs
-import java.io.File
+import com.example.kofiles.data.SourceProvider
+import com.example.kofiles.data.ByteSource
+import java.io.IOException
 
 private const val CHUNK = 256 * 1024
 
 /** Читает видео по кускам через Shizuku/ADB — так можно смотреть файлы из Android/data. */
 @OptIn(UnstableApi::class)
-private class RemoteDataSource(private val fs: RemoteFs) : BaseDataSource(true) {
+private class RemoteDataSource(private val provider: SourceProvider) : BaseDataSource(true) {
+    private var source: ByteSource? = null
     private var currentUri: Uri? = null
     private var path = ""
     private var position = 0L
@@ -56,7 +58,8 @@ private class RemoteDataSource(private val fs: RemoteFs) : BaseDataSource(true) 
         currentUri = dataSpec.uri
         path = dataSpec.uri.path ?: ""
         transferInitializing(dataSpec)
-        val size = fs.size(path)
+        source = provider(path)
+        val size = source!!.size()
         position = dataSpec.position
         remaining = if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.length else size - position
         if (remaining < 0) throw DataSourceException(PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
@@ -72,7 +75,7 @@ private class RemoteDataSource(private val fs: RemoteFs) : BaseDataSource(true) 
         if (remaining == 0L) return C.RESULT_END_OF_INPUT
         if (bufPos >= buf.size) {
             val want = minOf(CHUNK.toLong(), remaining).toInt()
-            buf = fs.read(path, position, want)
+            buf = source?.read(position, want) ?: throw IOException("Источник не открыт")
             bufPos = 0
             if (buf.isEmpty()) return C.RESULT_END_OF_INPUT
         }
@@ -94,20 +97,22 @@ private class RemoteDataSource(private val fs: RemoteFs) : BaseDataSource(true) 
         }
         buf = ByteArray(0)
         bufPos = 0
+        source?.close()
+        source = null
         currentUri = null
     }
 }
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoScreen(fs: RemoteFs, path: String, autoplay: Boolean, onClose: () -> Unit) {
+fun VideoScreen(provider: SourceProvider, path: String, autoplay: Boolean, onClose: () -> Unit) {
     val ctx = LocalContext.current
     BackHandler(onBack = onClose)
     var err by remember(path) { mutableStateOf<String?>(null) }
 
     val exo = remember(path) {
         ExoPlayer.Builder(ctx).build().also { p ->
-            val factory = DataSource.Factory { RemoteDataSource(fs) }
+            val factory = DataSource.Factory { RemoteDataSource(provider) }
             val src = ProgressiveMediaSource.Factory(factory)
                 .createMediaSource(MediaItem.fromUri(Uri.fromFile(File(path))))
             p.setMediaSource(src)

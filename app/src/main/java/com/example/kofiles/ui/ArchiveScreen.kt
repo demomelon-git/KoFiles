@@ -156,7 +156,7 @@ fun ArchiveScreen(vm: MainViewModel, path: String, local: Boolean, onClose: () -
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(children, key = { it.fullPath }) { c ->
                         val selected = c.fullPath in st.selected
-                        val kind = if (c.isDir) Kind.DIR else FileKinds.kind(c.name)
+                        val kind = if (c.isDir) Kind.DIR else uiKind(FileKinds.kind(c.name))
                         Row(
                             Modifier.fillMaxWidth()
                                 .background(if (selected) cs.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)

@@ -162,7 +162,7 @@ fun AppsTab(vm: MainViewModel, goFiles: () -> Unit) {
 }
 
 @Composable
-private fun AppIcon(pkg: String, size: Dp) {
+fun AppIcon(pkg: String, size: Dp) {
     val ctx = LocalContext.current
     val bmp by produceState<ImageBitmap?>(null, pkg) {
         value = withContext(Dispatchers.IO) {

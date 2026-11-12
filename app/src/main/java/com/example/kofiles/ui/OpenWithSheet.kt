@@ -70,7 +70,7 @@ fun OpenWithSheet(vm: MainViewModel) {
         ) {
             // заголовок
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-                Icon(kindIcon(kind), null, tint = kindColor(kind), modifier = Modifier.size(36.dp))
+                Icon(kindIcon(uiKind(kind)), null, tint = kindColor(uiKind(kind)), modifier = Modifier.size(36.dp))
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(req.name, style = MaterialTheme.typography.titleMedium, maxLines = 2)
