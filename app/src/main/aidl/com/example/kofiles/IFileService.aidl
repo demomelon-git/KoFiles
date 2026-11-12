@@ -1,4 +1,4 @@
-package com.example.darkfiles;
+package com.example.kofiles;
 
 interface IFileService {
     // Метод, который требует Shizuku для остановки службы
