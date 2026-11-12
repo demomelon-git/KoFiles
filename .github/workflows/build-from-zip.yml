@@ -1,0 +1,98 @@
+name: Build APK from ZIP archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      archive_path:
+        description: "Path to the ZIP archive committed to this repository"
+        required: true
+        default: "KoFiles-1.zip"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Unpack and build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 34
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Extract project archive
+        env:
+          ARCHIVE_PATH: ${{ inputs.archive_path }}
+        run: |
+          set -euo pipefail
+
+          case "$ARCHIVE_PATH" in
+            ""|/*|../*|*/../*|*/..)
+              echo "::error::Archive path must be a relative path inside the repository."
+              exit 1
+              ;;
+          esac
+
+          case "$ARCHIVE_PATH" in
+            *.zip) ;;
+            *)
+              echo "::error::The selected file must have a .zip extension."
+              exit 1
+              ;;
+          esac
+
+          if [ ! -f "$GITHUB_WORKSPACE/$ARCHIVE_PATH" ]; then
+            echo "::error::ZIP not found: $ARCHIVE_PATH. Upload the archive to the repository first."
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/project-archive"
+          unzip -q "$GITHUB_WORKSPACE/$ARCHIVE_PATH" -d "$RUNNER_TEMP/project-archive"
+
+          PROJECT_DIR="$(find "$RUNNER_TEMP/project-archive" -type f -name settings.gradle.kts -print -quit | xargs -r dirname)"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "::error::No settings.gradle.kts found in the ZIP. This archive does not look like a Gradle Android project."
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found Gradle project at: $PROJECT_DIR"
+
+      - name: Build debug APK
+        run: gradle -p "$PROJECT_DIR" assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KoFiles-debug-APK
+          path: ${{ runner.temp }}/project-archive/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build reports if build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KoFiles-build-reports
+          path: ${{ runner.temp }}/project-archive/**/build/reports/
+          if-no-files-found: ignore
+          retention-days: 7
