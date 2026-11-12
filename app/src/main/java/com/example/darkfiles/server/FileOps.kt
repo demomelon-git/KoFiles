@@ -1,4 +1,4 @@
-package com.example.darkfiles.server
+package com.example.kofiles.server
 
 import java.io.File
 import java.io.IOException
@@ -26,7 +26,9 @@ object FileOps {
             "list" -> return list(File(a[0]))
             "size" -> return File(a[0]).length().toString().toByteArray()
             "read" -> return read(a[0], a[1].toLong(), a[2].toInt())
-            "mkdir" -> if (!File(a[0]).mkdirs()) throw IOException("Не удалось создать папку")
+            "mkdir" -> if (!File(a[0]).mkdirs() && !File(a[0]).isDirectory) throw IOException("Не удалось создать папку")
+            "write" -> write(a[0], a[1].toLong(), a[2])
+            "pminstall" -> return pmInstall(a[0])
             "touch" -> if (!File(a[0]).createNewFile()) throw IOException("Файл уже существует")
             "delete" -> if (!File(a[0]).deleteRecursively()) throw IOException("Не удалось удалить: ${File(a[0]).name}")
             "rename" -> rename(File(a[0]), File(a[1]))
@@ -62,6 +64,28 @@ object FileOps {
             }
             return if (n == len) buf else buf.copyOf(n)
         }
+    }
+
+    /** Запись куска файла (данные в base64). offset == 0 — файл создаётся заново. */
+    private fun write(path: String, off: Long, b64: String) {
+        val data = if (b64.isEmpty()) ByteArray(0) else android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
+        File(path).parentFile?.mkdirs()
+        RandomAccessFile(path, "rw").use { raf ->
+            if (off == 0L) raf.setLength(0)
+            raf.seek(off)
+            raf.write(data)
+        }
+    }
+
+    /** Установка APK с правами shell/root (работает только в режимах Shizuku и ADB). */
+    private fun pmInstall(path: String): ByteArray {
+        val p = ProcessBuilder("/system/bin/pm", "install", "-r", path).redirectErrorStream(true).start()
+        val out = p.inputStream.bufferedReader().use { it.readText() }
+        val code = p.waitFor()
+        if (code != 0 || !out.contains("Success")) {
+            throw IOException(out.trim().ifEmpty { "pm install завершился с кодом $code" })
+        }
+        return out.trim().toByteArray()
     }
 
     private fun rename(from: File, to: File) {

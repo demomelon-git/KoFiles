@@ -1,4 +1,4 @@
-package com.example.darkfiles.server
+package com.example.kofiles.server
 
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -35,7 +35,13 @@ object AdbServer {
             val method = inp.readUTF()
             val n = inp.readInt()
             if (n < 0 || n > 8) throw IllegalArgumentException("bad args")
-            val args = Array(n) { inp.readUTF() }
+            val args = Array(n) {
+                val len = inp.readInt()
+                if (len < 0 || len > 8 * 1024 * 1024) throw IllegalArgumentException("bad arg")
+                val b = ByteArray(len)
+                inp.readFully(b)
+                String(b, Charsets.UTF_8)
+            }
             val res: ByteArray = when {
                 t != token -> byteArrayOf(1) + "Неверный токен".toByteArray()
                 method == "stop" -> { stop = true; byteArrayOf(0) }

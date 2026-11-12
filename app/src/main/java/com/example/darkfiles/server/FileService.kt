@@ -1,6 +1,6 @@
-package com.example.darkfiles.server
+package com.example.kofiles.server
 
-import com.example.darkfiles.IFileService
+import com.example.kofiles.IFileService
 import kotlin.system.exitProcess
 
 /** Shizuku UserService: запускается Shizuku в своём процессе (shell или root). */
