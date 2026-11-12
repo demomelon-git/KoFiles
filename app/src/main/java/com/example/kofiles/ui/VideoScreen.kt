@@ -1,4 +1,4 @@
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -36,7 +36,7 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
-import com.example.darkfiles.data.RemoteFs
+import com.example.kofiles.data.RemoteFs
 import java.io.File
 
 private const val CHUNK = 256 * 1024

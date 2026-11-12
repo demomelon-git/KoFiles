@@ -1,4 +1,4 @@
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -28,7 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.example.darkfiles.data.FileItem
+import com.example.kofiles.data.FileItem
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

@@ -1,4 +1,4 @@
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,10 +40,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.example.darkfiles.MODE_ADB
-import com.example.darkfiles.MODE_NONE
-import com.example.darkfiles.MODE_SHIZUKU
-import com.example.darkfiles.MainViewModel
+import com.example.kofiles.MODE_ADB
+import com.example.kofiles.MODE_NONE
+import com.example.kofiles.MODE_SHIZUKU
+import com.example.kofiles.MainViewModel
 
 @Composable
 fun LaunchTab(vm: MainViewModel) {

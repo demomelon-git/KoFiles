@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.drawable.toBitmap
-import com.example.darkfiles.MainViewModel
-import com.example.darkfiles.data.AppEntry
+import com.example.kofiles.MainViewModel
+import com.example.kofiles.data.AppEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

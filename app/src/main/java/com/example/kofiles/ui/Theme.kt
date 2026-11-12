@@ -1,4 +1,4 @@
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +38,7 @@ private val Light = lightColorScheme(
 )
 
 @Composable
-fun DarkFilesTheme(theme: Int, content: @Composable () -> Unit) {
+fun KoFilesTheme(theme: Int, content: @Composable () -> Unit) {
     val dark = when (theme) {
         1 -> isSystemInDarkTheme()
         2 -> false

@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import android.os.StatFs
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -85,9 +85,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.darkfiles.Conn
-import com.example.darkfiles.MainViewModel
-import com.example.darkfiles.data.FileItem
+import com.example.kofiles.Conn
+import com.example.kofiles.MainViewModel
+import com.example.kofiles.data.FileItem
 import java.io.File
 
 private data class Tile(val title: String, val path: String, val icon: ImageVector)
