@@ -1,4 +1,4 @@
-package com.example.darkfiles
+package com.example.kofiles
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
@@ -26,13 +27,21 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.example.darkfiles.ui.AppsTab
-import com.example.darkfiles.ui.DarkFilesTheme
-import com.example.darkfiles.ui.FilesTab
-import com.example.darkfiles.ui.LaunchTab
-import com.example.darkfiles.ui.SettingsTab
-import com.example.darkfiles.ui.VideoScreen
+import androidx.compose.ui.unit.dp
+import com.example.kofiles.data.Kind
+import com.example.kofiles.data.Viewer
+import com.example.kofiles.ui.AppsTab
+import com.example.kofiles.ui.ArchiveScreen
+import com.example.kofiles.ui.AudioScreen
+import com.example.kofiles.ui.FilesTab
+import com.example.kofiles.ui.ImageScreen
+import com.example.kofiles.ui.KoFilesTheme
+import com.example.kofiles.ui.LaunchTab
+import com.example.kofiles.ui.OpenWithSheet
+import com.example.kofiles.ui.SettingsTab
+import com.example.kofiles.ui.VideoScreen
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -40,7 +49,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            DarkFilesTheme(vm.prefs.theme) { Root(vm) }
+            KoFilesTheme(vm.prefs.theme) { Root(vm) }
         }
     }
 
@@ -61,45 +70,58 @@ private fun Root(vm: MainViewModel) {
             vm.message = null
         }
     }
+    val viewer = vm.viewer
 
-    val video = vm.player
-    val fs = vm.fs
-    if (video != null && fs != null) {
-        VideoScreen(fs, video, vm.prefs.autoplay) { vm.player = null }
-        return
-    }
+    BackHandler(enabled = viewer == null && tab == 0 && (vm.path != null || vm.selected.isNotEmpty())) { vm.back() }
+    BackHandler(enabled = viewer == null && tab != 0) { tab = 0 }
 
-    BackHandler(enabled = tab == 0 && (vm.path != null || vm.selected.isNotEmpty())) { vm.back() }
-    BackHandler(enabled = tab != 0) { tab = 0 }
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(snack) },
-        bottomBar = {
-            NavigationBar {
-                val items = listOf(
-                    Triple("Файлы", Icons.Default.Folder, 0),
-                    Triple("Приложения", Icons.Default.Apps, 1),
-                    Triple("Запуск", Icons.Default.Bolt, 2),
-                    Triple("Настройки", Icons.Default.Settings, 3)
-                )
-                items.forEach { (label, icon, i) ->
-                    NavigationBarItem(
-                        selected = tab == i,
-                        onClick = { tab = i },
-                        icon = { Icon(icon, label) },
-                        label = { Text(label) }
-                    )
+    Box(Modifier.fillMaxSize()) {
+        if (viewer != null) {
+            ViewerHost(vm, viewer)
+        } else {
+            Scaffold(
+                bottomBar = {
+                    NavigationBar {
+                        val items = listOf(
+                            Triple("Файлы", Icons.Default.Folder, 0),
+                            Triple("Приложения", Icons.Default.Apps, 1),
+                            Triple("Запуск", Icons.Default.Bolt, 2),
+                            Triple("Настройки", Icons.Default.Settings, 3)
+                        )
+                        items.forEach { (label, icon, i) ->
+                            NavigationBarItem(
+                                selected = tab == i,
+                                onClick = { tab = i },
+                                icon = { Icon(icon, label) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            ) { pad ->
+                Box(Modifier.padding(pad)) {
+                    when (tab) {
+                        0 -> FilesTab(vm) { tab = 2 }
+                        1 -> AppsTab(vm) { tab = 0 }
+                        2 -> LaunchTab(vm)
+                        else -> SettingsTab(vm)
+                    }
                 }
             }
         }
-    ) { pad ->
-        Box(Modifier.padding(pad)) {
-            when (tab) {
-                0 -> FilesTab(vm) { tab = 2 }
-                1 -> AppsTab(vm) { tab = 0 }
-                2 -> LaunchTab(vm)
-                else -> SettingsTab(vm)
-            }
-        }
+        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = if (viewer == null) 80.dp else 16.dp))
+        OpenWithSheet(vm)
     }
-  }
+}
+
+@Composable
+private fun ViewerHost(vm: MainViewModel, v: Viewer) {
+    val provider = remember(v) { vm.provider(v.local) }
+    when (v.kind) {
+        Kind.VIDEO -> VideoScreen(provider, v.paths[0], vm.prefs.autoplay) { vm.closeViewer() }
+        Kind.IMAGE -> ImageScreen(provider, v.paths, v.index) { vm.closeViewer() }
+        Kind.AUDIO -> AudioScreen(provider, v.paths, v.index, vm.prefs.autoplay) { vm.closeViewer() }
+        Kind.ARCHIVE -> ArchiveScreen(vm, v.paths[0], v.local) { vm.closeViewer() }
+        else -> LaunchedEffect(Unit) { vm.closeViewer() }
+    }
+}

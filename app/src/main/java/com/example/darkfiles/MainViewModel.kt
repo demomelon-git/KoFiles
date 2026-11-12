@@ -1,6 +1,12 @@
-package com.example.darkfiles
+package com.example.kofiles
 
 import android.app.Application
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.content.ComponentName
 import android.content.ServiceConnection
 import android.content.pm.ApplicationInfo
@@ -13,20 +19,35 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.darkfiles.data.AdbTransport
-import com.example.darkfiles.data.AppEntry
-import com.example.darkfiles.data.BinderTransport
-import com.example.darkfiles.data.Clip
-import com.example.darkfiles.data.FileItem
-import com.example.darkfiles.data.Prefs
-import com.example.darkfiles.data.RemoteFs
-import com.example.darkfiles.data.joinPath
-import com.example.darkfiles.server.AdbServer
-import com.example.darkfiles.server.FileService
+import com.example.kofiles.data.AdbTransport
+import com.example.kofiles.data.ArchiveChild
+import com.example.kofiles.data.ArchiveState
+import com.example.kofiles.data.Archives
+import com.example.kofiles.data.FileKinds
+import com.example.kofiles.data.Kind
+import com.example.kofiles.data.LocalSource
+import com.example.kofiles.data.OpenCache
+import com.example.kofiles.data.OpenRequest
+import com.example.kofiles.data.Opener
+import com.example.kofiles.data.RemoteSource
+import com.example.kofiles.data.SourceProvider
+import com.example.kofiles.data.Viewer
+import com.example.kofiles.data.AppEntry
+import com.example.kofiles.data.BinderTransport
+import com.example.kofiles.data.Clip
+import com.example.kofiles.data.FileItem
+import com.example.kofiles.data.Prefs
+import com.example.kofiles.data.RemoteFs
+import com.example.kofiles.data.joinPath
+import com.example.kofiles.server.AdbServer
+import com.example.kofiles.server.FileService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 import java.io.File
+import java.io.IOException
 
 const val MODE_SHIZUKU = "shizuku"
 const val MODE_ADB = "adb"
@@ -42,11 +63,6 @@ sealed interface Conn {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val prefs = Prefs(app)
     val root: String = Environment.getExternalStorageDirectory().absolutePath
-
-    // Initialize path before init, because auto-connect reads it from connect().
-    var path by mutableStateOf<String?>(null)
-        private set
-
     private val ctx: Application get() = getApplication()
 
     // ---------- подключение ----------
@@ -92,6 +108,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         Shizuku.addBinderDeadListener(onDead)
         Shizuku.addRequestPermissionResultListener(onPerm)
         if (prefs.autoConnect) connect()
+        viewModelScope.launch(Dispatchers.IO) { try { OpenCache.trimOld(ctx) } catch (e: Exception) { } }
     }
 
     override fun onCleared() {
@@ -106,7 +123,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun chooseMode(m: String) {
-        prefs.saveMode(m)
+        prefs.setMode(m)
         connect()
     }
 
@@ -183,7 +200,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             "#!/system/bin/sh",
             "APK=\$(pm path ${ctx.packageName} | head -n 1 | cut -d: -f2)",
             "if [ -z \"\$APK\" ]; then echo 'APK not found'; exit 1; fi",
-            "CLASSPATH=\$APK nohup app_process /system/bin --nice-name=darkfiles_server $cls ${prefs.adbPort} ${prefs.token} >/dev/null 2>&1 &",
+            "CLASSPATH=\$APK nohup app_process /system/bin --nice-name=kofiles_server $cls ${prefs.adbPort} ${prefs.token} >/dev/null 2>&1 &",
             "sleep 1",
             "echo 'Server started'"
         )
@@ -204,6 +221,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- обзор файлов ----------
+    var path by mutableStateOf<String?>(null)
+        private set
     private var raw by mutableStateOf<List<FileItem>>(emptyList())
     var loading by mutableStateOf(false)
         private set
@@ -215,7 +234,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var clip by mutableStateOf<Clip?>(null)
         private set
     var message by mutableStateOf<String?>(null)
-    var player by mutableStateOf<String?>(null)
 
     fun open(p: String?) {
         path = p
@@ -281,10 +299,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun selectAll(l: List<FileItem>) { selected.clear(); selected.addAll(l.map { it.path }) }
     fun clearClip() { clip = null }
 
-    fun playVideo(p: String) {
-        if (fs == null) message = "Нет доступа к файлам" else player = p
-    }
-
     private fun op(ok: String, block: (RemoteFs) -> Unit) {
         val f = fs
         if (f == null) { message = "Нет доступа к файлам"; return }
@@ -338,6 +352,259 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         var i = 1
         while ("$base ($i)$ext" in taken) i++
         return "$base ($i)$ext"
+    }
+
+    // ---------- открытие файлов ----------
+    var openRequest by mutableStateOf<OpenRequest?>(null)
+    var copyProgress by mutableStateOf<Float?>(null)
+        private set
+    private val viewerStack = mutableStateListOf<Viewer>()
+    val viewer: Viewer? get() = viewerStack.lastOrNull()
+    private val archives = HashMap<String, ArchiveState>()
+
+    private val WRITE_CHUNK = 96 * 1024
+
+    /** Нажатие на файл: спросить, чем открыть (с проверкой совместимых приложений), либо сразу встроенный просмотр. */
+    fun onFileClick(f: FileItem) {
+        val req = OpenRequest(f.path, f.name, f.size, false)
+        if (prefs.askOpenWith) openRequest = req else openDirect(req)
+    }
+
+    fun requestOpen(req: OpenRequest) {
+        if (prefs.askOpenWith) openRequest = req else openDirect(req)
+    }
+
+    private fun openDirect(req: OpenRequest) {
+        when (FileKinds.kind(req.name)) {
+            Kind.VIDEO, Kind.IMAGE, Kind.AUDIO, Kind.ARCHIVE -> openBuiltIn(req, false)
+            else -> openRequest = req
+        }
+    }
+
+    fun provider(local: Boolean): SourceProvider {
+        if (local) return { p -> LocalSource(File(p)) }
+        return { p -> RemoteSource(fs ?: throw IOException("Нет доступа к файлам"), p) }
+    }
+
+    fun openBuiltIn(req: OpenRequest, asArchive: Boolean) {
+        openRequest = null
+        if (!req.local && fs == null) {
+            message = "Нет доступа к файлам. Выберите способ запуска."
+            return
+        }
+        val kind = if (asArchive) Kind.ARCHIVE else FileKinds.kind(req.name)
+        when (kind) {
+            Kind.IMAGE, Kind.AUDIO -> {
+                val parent = File(req.path).parent
+                val siblings: List<String> = if (req.local) emptyList<String>() else visible()
+                    .filter { !it.isDir && FileKinds.kind(it.name) == kind && File(it.path).parent == parent }
+                    .map { it.path }
+                val list = if (siblings.contains(req.path)) siblings else listOf(req.path)
+                viewerStack.add(Viewer(kind, list, list.indexOf(req.path), req.local))
+            }
+            Kind.VIDEO, Kind.ARCHIVE -> viewerStack.add(Viewer(kind, listOf(req.path), 0, req.local))
+            else -> message = "Для этого типа файла нет встроенного просмотра"
+        }
+    }
+
+    fun closeViewer() {
+        val v = viewerStack.removeLastOrNull() ?: return
+        if (v.kind == Kind.ARCHIVE) archives.remove("${v.paths[0]}|${v.local}")?.close()
+    }
+
+    /** Копия файла во временной папке (для сторонних приложений). Блокирующий вызов — только из IO. */
+    private fun materialize(req: OpenRequest): File {
+        if (req.local) return File(req.path)
+        val f = fs ?: throw IOException("Нет доступа к файлам")
+        val dest = OpenCache.fileFor(ctx, req.path, req.name)
+        copyProgress = 0f
+        try {
+            OpenCache.copy(RemoteSource(f, req.path), dest) { copyProgress = it }
+        } finally {
+            copyProgress = null
+        }
+        return dest
+    }
+
+    private fun launchSafely(intent: Intent) {
+        try {
+            ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: ActivityNotFoundException) {
+            message = "Приложение не найдено"
+        } catch (e: SecurityException) {
+            message = "Нет доступа к файлу для этого приложения"
+        }
+    }
+
+    /** Открыть в стороннем приложении (pkg/activity выбраны из списка совместимых). */
+    fun openExternal(req: OpenRequest, pkg: String?, activity: String?, mimeOverride: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = materialize(req)
+                val uri = Opener.uriFor(ctx, file)
+                val intent = Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, mimeOverride ?: FileKinds.mime(req.name))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (pkg != null && activity != null) intent.setClassName(pkg, activity)
+                withContext(Dispatchers.Main) {
+                    openRequest = null
+                    launchSafely(intent)
+                }
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось открыть файл"
+            }
+        }
+    }
+
+    /** Установка через обычный (или выбранный сторонний) установщик пакетов. */
+    fun installApk(req: OpenRequest, pkg: String?, activity: String?, stock: Boolean) {
+        if (stock && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ctx.packageManager.canRequestPackageInstalls()) {
+            message = "Разрешите KoFiles устанавливать приложения и повторите"
+            launchSafely(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}")))
+            return
+        }
+        openExternal(req, pkg, activity, Opener.APK_MIME)
+    }
+
+    /** «Свой» установщик: pm install с правами shell/root через Shizuku или ADB. */
+    fun installViaShell(req: OpenRequest) {
+        val f = fs
+        if (f == null) {
+            message = "Нужен режим Shizuku или ADB"
+            return
+        }
+        openRequest = null
+        message = "Установка…"
+        viewModelScope.launch(Dispatchers.IO) {
+            message = try {
+                f.pmInstall(req.path)
+                "Приложение установлено"
+            } catch (e: Exception) {
+                e.message ?: "Ошибка установки"
+            }
+        }
+    }
+
+    fun shareFile(req: OpenRequest) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = materialize(req)
+                val uri = Opener.uriFor(ctx, file)
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType(FileKinds.mime(req.name))
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                send.clipData = ClipData.newRawUri("", uri)
+                withContext(Dispatchers.Main) {
+                    openRequest = null
+                    launchSafely(Intent.createChooser(send, "Поделиться"))
+                }
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось поделиться файлом"
+            }
+        }
+    }
+
+    // ---------- архивы ----------
+    fun archiveState(path: String, local: Boolean): ArchiveState =
+        archives.getOrPut("$path|$local") { ArchiveState(path, File(path).name, local) }
+
+    fun ensureLoaded(st: ArchiveState) {
+        if (st.started) return
+        st.started = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = materialize(OpenRequest(st.path, st.name, 0, st.local))
+                val reader = Archives.open(file, st.name)
+                st.reader = reader
+                st.entries = reader.entries()
+            } catch (e: Throwable) {
+                st.error = e.message ?: e.toString()
+            }
+            st.loading = false
+        }
+    }
+
+    /** Файл из архива → временная копия → то же окно «чем открыть». */
+    fun openArchiveEntry(st: ArchiveState, child: ArchiveChild) {
+        val reader = st.reader ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                st.busy = "Распаковка: ${child.name}"
+                val dest = OpenCache.fileFor(ctx, st.path + "!" + child.fullPath, child.name)
+                st.lock.withLock {
+                    reader.open(child.fullPath).use { ins -> dest.outputStream().use { ins.copyTo(it) } }
+                }
+                requestOpen(OpenRequest(dest.absolutePath, child.name, dest.length(), true))
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось распаковать файл"
+            } finally {
+                st.busy = null
+                st.busyProgress = 0f
+            }
+        }
+    }
+
+    /** Распаковка в папку рядом с архивом (через Shizuku/ADB, поэтому работает и в Android/data). names == null — всё. */
+    fun extractArchive(st: ArchiveState, names: List<String>?) {
+        val f = fs
+        val reader = st.reader
+        if (f == null || reader == null || st.local) {
+            message = "Распаковка доступна только в режиме Shizuku или ADB"
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                st.lock.withLock {
+                    val parent = File(st.path).parent ?: "/"
+                    val existing = f.list(parent).map { it.name }.toSet()
+                    val lower = st.name.lowercase()
+                    val base = listOf(".tar.gz", ".tar.bz2", ".tar.xz").firstOrNull { lower.endsWith(it) }
+                        ?.let { st.name.dropLast(it.length) } ?: st.name.substringBeforeLast('.', st.name)
+                    val destName = unique(base.ifBlank { "archive" }, existing)
+                    val dest = joinPath(parent, destName)
+                    val list = (if (names == null) st.entries else st.expand(names)).filter { Archives.isSafe(it.path) }
+                    f.mkdir(dest)
+                    var done = 0
+                    for (e in list) {
+                        st.busy = "Распаковка: ${done + 1} из ${list.size}"
+                        st.busyProgress = done.toFloat() / list.size
+                        val target = joinPath(dest, e.path)
+                        if (e.isDir) f.mkdir(target) else writeEntry(f, reader, e.path, target)
+                        done++
+                    }
+                    message = "Распаковано в «$destName»: $done"
+                }
+            } catch (e: Exception) {
+                message = e.message ?: "Ошибка распаковки"
+            } finally {
+                st.busy = null
+                st.busyProgress = 0f
+            }
+            reload()
+        }
+    }
+
+    private fun writeEntry(f: RemoteFs, reader: com.example.kofiles.data.ArchiveReader, entryPath: String, target: String) {
+        reader.open(entryPath).use { ins ->
+            val buf = ByteArray(WRITE_CHUNK)
+            var off = 0L
+            while (true) {
+                val n = ins.read(buf)
+                if (n < 0) break
+                if (n == 0) continue
+                f.write(target, off, buf, n)
+                off += n
+            }
+            if (off == 0L) f.write(target, 0L, buf, 0) // пустой файл
+        }
+    }
+
+    fun clearOpenCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            OpenCache.clear(ctx)
+            message = "Временные файлы удалены"
+        }
     }
 
     // ---------- приложения ----------
