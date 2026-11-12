@@ -78,6 +78,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             is Conn.Off -> if (prefs.mode == MODE_NONE) "Режим «Без запуска»: доступ к файлам отключён" else "Не подключено"
         }
 
+    var path by mutableStateOf<String?>(null)
+        private set
+
     private val svcConn = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             if (binder == null || !binder.pingBinder()) {
@@ -221,8 +224,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- обзор файлов ----------
-    var path by mutableStateOf<String?>(null)
-        private set
     private var raw by mutableStateOf<List<FileItem>>(emptyList())
     var loading by mutableStateOf(false)
         private set
