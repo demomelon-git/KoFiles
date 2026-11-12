@@ -1,4 +1,4 @@
-package com.example.darkfiles.ui
+package com.example.kofiles.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -16,21 +16,29 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.example.darkfiles.MainViewModel
+import com.example.kofiles.MainViewModel
+import com.example.kofiles.data.OpenCache
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
 fun SettingsTab(vm: MainViewModel) {
     val p = vm.prefs
     var dlg by remember { mutableStateOf("") }
+    val ctx = LocalContext.current
+    var cacheSize by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) { cacheSize = withContext(Dispatchers.IO) { OpenCache.size(ctx) } }
     val sortNames = listOf("По имени", "По размеру", "По дате")
     val themeNames = listOf("Тёмная", "Как в системе", "Светлая")
 
@@ -41,18 +49,27 @@ fun SettingsTab(vm: MainViewModel) {
         ClickRow("Тема", themeNames[p.theme]) { dlg = "theme" }
 
         Group("Файлы")
-        SwitchRow("Показывать скрытые файлы", "Имена, начинающиеся с точки", p.showHidden) { p.saveShowHidden(it) }
-        SwitchRow("Папки сверху", null, p.foldersFirst) { p.saveFoldersFirst(it) }
+        SwitchRow("Показывать скрытые файлы", "Имена, начинающиеся с точки", p.showHidden) { p.setShowHidden(it) }
+        SwitchRow("Папки сверху", null, p.foldersFirst) { p.setFoldersFirst(it) }
         ClickRow("Сортировка", sortNames[p.sortBy]) { dlg = "sort" }
-        SwitchRow("Сортировать по убыванию", null, p.sortDesc) { p.saveSortDesc(it) }
-        SwitchRow("Подтверждать удаление", null, p.confirmDelete) { p.saveConfirmDelete(it) }
+        SwitchRow("Сортировать по убыванию", null, p.sortDesc) { p.setSortDesc(it) }
+        SwitchRow("Подтверждать удаление", null, p.confirmDelete) { p.setConfirmDelete(it) }
+        SwitchRow(
+            "Спрашивать, чем открыть файл",
+            "Проверять совместимые приложения при нажатии на файл",
+            p.askOpenWith
+        ) { p.setAskOpenWith(it) }
+        ClickRow("Очистить временные файлы", "Копии для сторонних приложений и распакованное из архивов: ${Fmt.size(cacheSize)}") {
+            vm.clearOpenCache()
+            cacheSize = 0L
+        }
 
         Group("Подключение")
-        SwitchRow("Подключаться автоматически", "При запуске и возврате в приложение", p.autoConnect) { p.saveAutoConnect(it) }
+        SwitchRow("Подключаться автоматически", "При запуске и возврате в приложение", p.autoConnect) { p.setAutoConnect(it) }
         ClickRow("Порт ADB-сервера", p.adbPort.toString()) { dlg = "port" }
 
         Group("Видео")
-        SwitchRow("Автозапуск воспроизведения", null, p.autoplay) { p.saveAutoplay(it) }
+        SwitchRow("Автозапуск воспроизведения", null, p.autoplay) { p.setAutoplay(it) }
 
         Group("Быстрый доступ")
         if (p.shortcuts.isEmpty()) {
@@ -81,7 +98,7 @@ fun SettingsTab(vm: MainViewModel) {
 
         Group("О приложении")
         Text(
-            "Dark Files 1.0 · режимы: Shizuku, ADB через ПК, без запуска",
+            "KoFiles 1.1 (раньше Dark Files) · режимы: Shizuku, ADB через ПК, без запуска",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -89,10 +106,10 @@ fun SettingsTab(vm: MainViewModel) {
     }
 
     when (dlg) {
-        "theme" -> RadioDialog("Тема", themeNames, p.theme, { dlg = "" }) { p.saveTheme(it); dlg = "" }
-        "sort" -> RadioDialog("Сортировка", sortNames, p.sortBy, { dlg = "" }) { p.saveSortBy(it); dlg = "" }
+        "theme" -> RadioDialog("Тема", themeNames, p.theme, { dlg = "" }) { p.setTheme(it); dlg = "" }
+        "sort" -> RadioDialog("Сортировка", sortNames, p.sortBy, { dlg = "" }) { p.setSortBy(it); dlg = "" }
         "port" -> TextDialog("Порт ADB-сервера", p.adbPort.toString(), "OK", { dlg = "" }) {
-            p.saveAdbPort(it.toIntOrNull()?.coerceIn(1024, 65535) ?: 38517)
+            p.setAdbPort(it.toIntOrNull()?.coerceIn(1024, 65535) ?: 38517)
             dlg = ""
         }
         "addpath" -> TextDialog("Адрес папки", "${vm.root}/Android/data/", "Добавить", { dlg = "" }) { path ->
