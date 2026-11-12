@@ -2,6 +2,7 @@ package com.example.kofiles.ui
 
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
+import android.media.MediaDataSource
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
@@ -58,14 +59,76 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.BaseDataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.example.kofiles.data.SourceProvider
+import com.example.kofiles.data.ByteSource
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
+
+
+/** MediaMetadataRetriever bridge for local and remote byte sources. */
+private class SourceMediaDataSource(private val source: ByteSource) : MediaDataSource() {
+    override fun getSize(): Long = source.size()
+
+    override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+        if (size == 0) return 0
+        val bytes = source.read(position, size)
+        if (bytes.isEmpty()) return -1
+        bytes.copyInto(buffer, offset, 0, bytes.size)
+        return bytes.size
+    }
+
+    override fun close() = source.close()
+}
+
+/** Media3 bridge that streams bytes from the app's local/remote SourceProvider. */
+@OptIn(UnstableApi::class)
+private class ByteSourceDataSource(private val provider: SourceProvider) : BaseDataSource(false) {
+    private var source: ByteSource? = null
+    private var uri: Uri? = null
+    private var position = 0L
+    private var bytesRemaining = -1L
+
+    override fun getUri(): Uri? = uri
+
+    override fun open(dataSpec: DataSpec): Long {
+        transferInitializing(dataSpec)
+        uri = dataSpec.uri
+        source = provider(dataSpec.uri.path ?: dataSpec.uri.toString())
+        position = dataSpec.position
+        val total = source!!.size()
+        bytesRemaining = if (dataSpec.length == -1L) total - position else dataSpec.length
+        transferStarted(dataSpec)
+        return bytesRemaining
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        if (length == 0) return 0
+        if (bytesRemaining == 0L) return -1
+        val wanted = if (bytesRemaining < 0L) length else minOf(length.toLong(), bytesRemaining).toInt()
+        val bytes = source?.read(position, wanted) ?: throw IOException("Источник не открыт")
+        if (bytes.isEmpty()) return -1
+        bytes.copyInto(buffer, offset, 0, bytes.size)
+        position += bytes.size
+        if (bytesRemaining > 0L) bytesRemaining -= bytes.size
+        bytesTransferred(bytes.size)
+        return bytes.size
+    }
+
+    override fun close() {
+        uri = null
+        source?.close()
+        source = null
+        transferEnded()
+    }
+}
 
 private class AudioMeta(val title: String? = null, val artist: String? = null, val album: String? = null, val art: ImageBitmap? = null)
 
