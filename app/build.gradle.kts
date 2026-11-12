@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.darkfiles"
+    namespace = "com.example.kofiles"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.darkfiles"
+        applicationId = "com.example.kofiles"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     buildTypes {
@@ -29,6 +29,11 @@ android {
         buildConfig = true
     }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+    packaging {
+        resources {
+            excludes += setOf("META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES", "META-INF/INDEX.LIST")
+        }
+    }
     lint {
         abortOnError = false
         checkReleaseBuilds = false
@@ -45,6 +50,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("org.apache.commons:commons-compress:1.26.2")
+    implementation("org.tukaani:xz:1.9")
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 }
