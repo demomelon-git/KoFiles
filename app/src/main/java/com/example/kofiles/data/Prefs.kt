@@ -46,16 +46,27 @@ class Prefs(ctx: Context) {
         get() = sp.getString("token", null)
             ?: UUID.randomUUID().toString().replace("-", "").also { sp.edit().putString("token", it).apply() }
 
+    @JvmName("updateMode")
     fun setMode(v: String) { mode = v; sp.edit().putString("mode", v).apply() }
+    @JvmName("updateTheme")
     fun setTheme(v: Int) { theme = v; sp.edit().putInt("theme", v).apply() }
+    @JvmName("updateShowHidden")
     fun setShowHidden(v: Boolean) { showHidden = v; sp.edit().putBoolean("hidden", v).apply() }
+    @JvmName("updateFoldersFirst")
     fun setFoldersFirst(v: Boolean) { foldersFirst = v; sp.edit().putBoolean("foldersFirst", v).apply() }
+    @JvmName("updateConfirmDelete")
     fun setConfirmDelete(v: Boolean) { confirmDelete = v; sp.edit().putBoolean("confirmDelete", v).apply() }
+    @JvmName("updateAutoConnect")
     fun setAutoConnect(v: Boolean) { autoConnect = v; sp.edit().putBoolean("autoConnect", v).apply() }
+    @JvmName("updateAutoplay")
     fun setAutoplay(v: Boolean) { autoplay = v; sp.edit().putBoolean("autoplay", v).apply() }
+    @JvmName("updateSortBy")
     fun setSortBy(v: Int) { sortBy = v; sp.edit().putInt("sortBy", v).apply() }
+    @JvmName("updateSortDesc")
     fun setSortDesc(v: Boolean) { sortDesc = v; sp.edit().putBoolean("sortDesc", v).apply() }
+    @JvmName("updateAdbPort")
     fun setAdbPort(v: Int) { adbPort = v; sp.edit().putInt("adbPort", v).apply() }
+    @JvmName("updateAskOpenWith")
     fun setAskOpenWith(v: Boolean) { askOpenWith = v; sp.edit().putBoolean("askOpenWith", v).apply() }
 
     private fun loadShortcuts(): List<Shortcut> = try {
