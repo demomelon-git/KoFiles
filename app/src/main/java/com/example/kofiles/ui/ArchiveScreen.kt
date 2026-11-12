@@ -51,7 +51,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.kofiles.MainViewModel
 import com.example.kofiles.data.FileKinds
-import com.example.kofiles.data.Kind
 
 @Composable
 fun ArchiveScreen(vm: MainViewModel, path: String, local: Boolean, onClose: () -> Unit) {
